@@ -17,9 +17,10 @@ def confinit():
 	confspec = {
 		"typingsnd": "boolean(default=true)",
 		"typing_sound": f"string(default={get_sounds_folders()[0]})",
-		"speak_characters": "integer(default=2)",
-		"speak_words": "integer(default=2)",
-		"speak_on_protected":"boolean(default=True)"}
+		"speak_characters": "integer(default=0)",
+		"speak_words": "integer(default=0)",
+		"speak_command_keys": "integer(default=0)",
+		"speak_on_protected":"boolean(default=False)"}
 	config.confspec["typing_settings"] = confspec
 
 addonHandler.initTranslation()
@@ -57,6 +58,8 @@ class TypingSettingsPanel(SettingsPanel):
 		self.sounds = sHelper.addItem(wx.Choice(self, name="ts"))
 		sHelper.addItem(wx.StaticText(self, label=_("speek characters")))
 		self.speakCharacters = sHelper.addItem(wx.Choice(self, choices=[_("off"), _("anywhere"), _("in edit boxes only")]))
+		sHelper.addItem(wx.StaticText(self, label=_("speek command keys")))
+		self.speakCommandKeys = sHelper.addItem(wx.Choice(self, choices=[_("off"), _("anywhere"), _("in edit boxes only")]))
 		sHelper.addItem(wx.StaticText(self, label=_("speak words")))
 		self.speakWords = sHelper.addItem(wx.Choice(self, choices=[_("off"), _("anywhere"), _("in edit boxes only")]))
 		self.playTypingSounds = sHelper.addItem(wx.CheckBox(self, label=_("play sounds while typing")))
@@ -68,7 +71,11 @@ class TypingSettingsPanel(SettingsPanel):
 		except:
 			self.speakCharacters.SetSelection(0)
 		try:
-			self.speakWords.SetSelection(config.conf["typing_settings"]["speak_characters"])
+			self.speakCommandKeys.SetSelection(config.conf["typing_settings"]["speak_command_keys"])
+		except:
+			self.speakCommandKeys.SetSelection(0)
+		try:
+			self.speakWords.SetSelection(config.conf["typing_settings"]["speak_words"])
 		except:
 			self.speakWords.SetSelection(0)
 		self.OnChangeTypingSounds(None)
@@ -97,6 +104,7 @@ class TypingSettingsPanel(SettingsPanel):
 	def onSave(self):
 		config.conf["typing_settings"]["typing_sound"] = self.typingSound.GetStringSelection()
 		config.conf["typing_settings"]["speak_characters"] = self.speakCharacters.GetSelection()
+		config.conf["typing_settings"]["speak_command_keys"] = self.speakCommandKeys.GetSelection()
 		config.conf["typing_settings"]["speak_words"] = self.speakWords.GetSelection()
 		config.conf["typing_settings"]["speak_on_protected"] = self.speakPasswords.GetValue()
 		config.conf["typing_settings"]["typingsnd"] = self.playTypingSounds.GetValue()
@@ -112,6 +120,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def event_gainFocus(self, object, nextHandler):
 		if config.conf["typing_settings"]["speak_characters"] ==2:
 			config.conf["keyboard"]["speakTypedCharacters"] = self.IsEditable(object)
+		if config.conf["typing_settings"]["speak_command_keys"] ==2:
+			config.conf["keyboard"]["speakCommandKeys"] = self.IsEditable(object)
 		if config.conf["typing_settings"]["speak_words"] == 2:
 			config.conf["keyboard"]["speakTypedWords"] = self.IsEditable(object)
 		api.isTypingProtected = IsTypingProtected
@@ -125,7 +135,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				nvwave.playWaveFile(os.path.join(effects_dir, config.conf['typing_settings']['typing_sound'], "delete.wav"), True)
 			else:
 				count = self.SoundsCount(config.conf["typing_settings"]["typing_sound"])
-				nvwave.playWaveFile(os.path.join(effects_dir, config.conf['typing_settings']['typing_sound'], "typing.wav" if count<=0 else f"typing_{randint(1, count)}.wav"), True)
+				if (count<=0):
+					nvwave.playWaveFile(os.path.join(effects_dir, config.conf['typing_settings']['typing_sound'], "typing.wav"), True)
+				else:
+					nvwave.playWaveFile(os.path.join(effects_dir, config.conf['typing_settings']['typing_sound'], "typing_"+str(randint(1, count))+".wav"), True)
 		nextHandler()
 
 	def SoundsCount(self, name):
@@ -196,6 +209,25 @@ gestures=["kb:nvda+3"])
 			elif current == 2:
 				message(_("speak typed words in edit boxes only"))
 		config.conf["typing_settings"]["speak_words"] = current
+
+	@script(
+		description = _("Switches between the available speak command keys modes."),
+		category = _("typing settings"),
+gestures=["kb:nvda+4"])
+	def script_speak_command_keys(self, gesture):
+		current = config.conf["typing_settings"]["speak_command_keys"]
+		if current >=2:
+			current = 0
+			config.conf["keyboard"]["speakCommandKeys"] = False
+			message(_("speak command keys off"))
+		else:
+			current +=1
+			if current == 1:
+				config.conf["keyboard"]["speakCommandKeys"] = True
+				message(_("speak typed Command Keys anywhere"))
+			elif current == 2:
+				message(_("speak Command Keys in edit boxes only"))
+		config.conf["typing_settings"]["speak_command_keys"] = current
 
 	def terminate(self):
 		RestoreTypingProtected()
